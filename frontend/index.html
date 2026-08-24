@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>PrononciA+</title>
+    <meta name="description" content="Corrige ta prononciation anglaise en temps réel." />
+
+    <!-- Couleur de la barre d'état / thème navigateur -->
+    <meta name="theme-color" content="#2563eb" />
+
+    <!-- PWA installable sur Android/Chrome -->
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+
+    <!-- Comportement "app" sur iOS Safari (pas de bandeau natif possible côté
+         Apple, mais ces balises sont nécessaires pour qu'une fois ajoutée à
+         l'écran d'accueil manuellement, l'app s'ouvre en plein écran sans
+         barre d'adresse, comme une vraie app) -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="PrononciA+" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+
+    <!-- Applique le thème clair/sombre AVANT le premier rendu React, pour
+         éviter un flash de l'ancien thème (FOUC) au chargement de la page. -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem("parollle_theme");
+          var theme = stored === "light" || stored === "dark"
+            ? stored
+            : (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+          document.documentElement.setAttribute("data-theme", theme);
+        } catch (e) {
+          document.documentElement.setAttribute("data-theme", "dark");
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

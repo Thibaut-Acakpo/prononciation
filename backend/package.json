@@ -1,0 +1,25 @@
+{
+  "name": "prononciation-backend",
+  "version": "0.1.0",
+  "private": true,
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "generate-audio": "python scripts/generate_reference_audio.py",
+    "backup": "node scripts/backup_db.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-rate-limit": "^8.6.0",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.2.0",
+    "mysql2": "^3.23.0",
+    "nodemailer": "^9.0.5",
+    "socket.io": "^4.8.3"
+  }
+}

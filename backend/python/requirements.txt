@@ -1,0 +1,27 @@
+# Dépendances Python du worker d'analyse phonétique.
+#
+# Historique des corrections d'audit :
+# - `speech_recognition` retiré : remplacé par Whisper local, supprime la
+#   dépendance à l'API web non officielle de Google.
+# - `phonemizer` ajouté : utilisé dans le code mais absent d'ici auparavant.
+# - `transformers` + `torch` : AJOUTÉS pour de bon cette fois — le modèle
+#   acoustique (facebook/wav2vec2-lv-60-espeak-cv-ft) reconnaît les phonèmes
+#   DIRECTEMENT depuis l'audio, au lieu de comparer les phonèmes du mot
+#   deviné par Whisper (texte) — c'est la vraie mesure de la prononciation
+#   réelle de l'utilisateur, pas juste "Whisper a-t-il reconnu le mot".
+#
+# Prérequis SYSTÈME (pas installable via pip) : espeak-ng doit être installé
+# sur la machine — `apt install espeak-ng` (Linux), `brew install espeak-ng` (macOS),
+# ou l'installeur officiel sur Windows. Voir le README pour le détail par OS.
+#
+# IMPORTANT (premier lancement) : le modèle acoustique (~1,2 Go) et Whisper
+# (~75 Mo) sont téléchargés une seule fois depuis Internet au tout premier
+# lancement du serveur, puis mis en cache localement — ensuite, tout
+# fonctionne sans connexion.
+
+pydub==0.25.1
+numpy==1.26.4
+openai-whisper==20231117
+phonemizer==3.2.1
+torch==2.3.1
+transformers==4.42.3
