@@ -1418,23 +1418,45 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   max-width: 96px;
   margin: 0 auto;
   position: relative;
+  transition: color 0.2s ease;
 }
 
-/* Pas de cadre ni de fond coloré autour de l'icône (demandé explicitement) :
-   juste l'icône elle-même qui change de couleur au clic, exactement comme
-   la référence fournie — un simple conteneur pour la taille/l'alignement. */
+/* Conteneur de l'icône */
 .bottom-nav__frame {
-  width: 26px;
-  height: 26px;
+  position: relative; /* Nécessaire pour positionner le badge */
+  width: 44px;       /* Largeur augmentée pour accueillir la bulle */
+  height: 32px;      /* Hauteur de la bulle */
   display: flex;
   align-items: center;
   justify-content: center;
   color: inherit;
-  transition: color 0.15s ease, transform 0.12s ease;
+  transition: color 0.2s ease, transform 0.12s ease;
+  z-index: 1;
+}
+
+/* ── LA BULLE GRISE (Uniquement sur l'élément actif) ── */
+.bottom-nav__item.active .bottom-nav__frame::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  height: 100%;
+  background-color: rgba(var(--c-border-rgb), 0.25); /* Bulle grise */
+  border-radius: 16px; /* Forme de pilule */
+  z-index: -1;
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* Animation d'apparition */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateX(-50%) scale(0.8); }
+  to { opacity: 1; transform: translateX(-50%) scale(1); }
 }
 
 .bottom-nav__label {
-  transition: color 0.15s ease;
+  transition: color 0.2s ease;
   font-weight: 500;
 }
 
@@ -1442,32 +1464,31 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   transform: scale(0.9);
 }
 
-/* Onglet actif : icône ET texte prennent directement la couleur de marque
-   (pas de fond, pas de cadre) — plus un petit indicateur sous le libellé,
-   comme sur la référence fournie. */
+/* ── ÉTAT ACTIF : Couleur et Dégradé ── */
 .bottom-nav__item.active {
-  color: var(--c-link);
-}
-.bottom-nav__item.active .bottom-nav__label {
-  font-weight: 700;
-}
-.bottom-nav__item.active::after {
-  content: "";
-  width: 16px;
-  height: 3px;
-  border-radius: 999px;
-  background: var(--c-link);
-  margin-top: 1px;
+  color: #00e5ff; /* Couleur de secours cyan */
 }
 
-/* ── Onglet "Match" : bouton circulaire surélevé, façon bouton d'action
-   flottant au centre de la barre (voir référence fournie) — toujours
-   visible en dégradé, même quand il n'est pas actif, pour bien le
-   distinguer des autres onglets et inviter au clic. ─────────────────── */
+/* Le dégradé Vert -> Bleu sur l'icône SVG active */
+.bottom-nav__item.active .bottom-nav__frame svg {
+  stroke: url(#nav-gradient); /* Utilise le dégradé SVG défini dans le composant */
+  filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.5));
+}
+
+/* Fallback si le dégradé SVG ne fonctionne pas, on met une couleur unie */
+.bottom-nav__item.active .bottom-nav__frame svg:not([stroke*="url"]) {
+  stroke: #00e5ff;
+}
+
+.bottom-nav__item.active .bottom-nav__label {
+  font-weight: 700;
+  color: #ffffff;
+}
+
+/* ── Onglet "Match" : bouton circulaire surélevé (FAB) ── */
 .bottom-nav__item--fab {
   margin-top: -26px;
 }
-.bottom-nav__item--fab::after { display: none; } /* le halo du bouton lui-même sert déjà d'indicateur */
 .bottom-nav__fab {
   width: 56px;
   height: 56px;
@@ -1489,7 +1510,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   margin-top: 2px;
 }
 .bottom-nav__item--fab.active .bottom-nav__label {
-  color: var(--c-link);
+  color: #00e5ff;
   font-weight: 700;
 }
 
