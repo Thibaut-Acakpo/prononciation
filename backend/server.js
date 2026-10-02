@@ -134,6 +134,7 @@ app.use(
     contentSecurityPolicy: {
       useDefaults: true,
       directives: {
+        "script-src": ["'self'", "'sha256-XdOzoXhakjsvD+N9Mdep+mhdPV4Vq/s1TEf44Yw0Kuc='"],
         "img-src": ["'self'", "data:", "blob:", "https:"],
         "media-src": ["'self'", "data:", "blob:", "https:"],
       },
