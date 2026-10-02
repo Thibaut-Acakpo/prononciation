@@ -8,12 +8,6 @@
  * Usage :
  *   node scripts/backup_db.js
  *
- * Planification automatique :
- *   - Windows (PowerShell / Planificateur de tâches) :
- *       schtasks /create /tn "PrononciA+ backup" /tr "node C:\chemin\vers\backend\scripts\backup_db.js" /sc daily /st 03:00
- *   - Linux/macOS (cron), une ligne dans `crontab -e` :
- *       0 3 * * * cd /chemin/vers/backend && node scripts/backup_db.js
- *
  * Les sauvegardes sont écrites dans backend/backups/ (créé automatiquement,
  * déjà ignoré par git — voir .gitignore) et les fichiers de plus de
  * BACKUP_RETENTION_DAYS jours sont supprimés automatiquement à chaque
@@ -27,16 +21,31 @@ const path = require("path");
 const zlib = require("zlib");
 
 const BACKUP_DIR = path.join(__dirname, "..", "backups");
-const RETENTION_DAYS = Number(process.env.BACKUP_RETENTION_DAYS) || 14;
+const RETENTION_MONTHS = Number(process.env.BACKUP_RETENTION_MONTHS) || 3;
 
 const DB_HOST = process.env.DB_HOST || "localhost";
 const DB_PORT = process.env.DB_PORT || "3306";
 const DB_USER = process.env.DB_USER || "root";
 const DB_PASSWORD = process.env.DB_PASSWORD || "";
 const DB_NAME = process.env.DB_NAME || "prononciation";
+const MYSQLDUMP_PATH = process.env.MYSQLDUMP_PATH || "mysqldump";
 
 function timestamp() {
   return new Date().toISOString().replace(/[:.]/g, "-");
+}
+
+function getRetentionCutoff(now = new Date()) {
+  const cutoff = new Date(now);
+  const day = cutoff.getUTCDate();
+  cutoff.setUTCDate(1);
+  cutoff.setUTCMonth(cutoff.getUTCMonth() - RETENTION_MONTHS);
+  const lastDay = new Date(Date.UTC(
+    cutoff.getUTCFullYear(),
+    cutoff.getUTCMonth() + 1,
+    0
+  )).getUTCDate();
+  cutoff.setUTCDate(Math.min(day, lastDay));
+  return cutoff.getTime();
 }
 
 function runBackup() {
@@ -54,46 +63,78 @@ function runBackup() {
   const env = { ...process.env, MYSQL_PWD: DB_PASSWORD };
 
   console.log(`[Backup] Démarrage de la sauvegarde de "${DB_NAME}"…`);
-  const dump = spawn("mysqldump", args, { env });
 
-  const gzip = zlib.createGzip();
-  const outStream = fs.createWriteStream(outPath);
-  dump.stdout.pipe(gzip).pipe(outStream);
+  return new Promise((resolve, reject) => {
+    const dump = spawn(MYSQLDUMP_PATH, args, { env });
+    const gzip = zlib.createGzip();
+    const outStream = fs.createWriteStream(outPath);
+    let stderr = "";
+    let dumpCode = null;
+    let streamFinished = false;
+    let settled = false;
 
-  let stderr = "";
-  dump.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
+    const fail = (error) => {
+      if (settled) return;
+      settled = true;
+      dump.kill();
+      outStream.destroy();
+      try { fs.unlinkSync(outPath); } catch (_) {}
+      reject(error);
+    };
 
-  dump.on("error", (err) => {
-    console.error(
-      "[Backup] ❌ Impossible de lancer mysqldump. Vérifie qu'il est installé et accessible " +
-      `dans le PATH (fourni avec MySQL/MariaDB) : ${err.message}`
-    );
-    process.exitCode = 1;
-  });
+    const finishIfReady = () => {
+      if (settled || dumpCode === null || !streamFinished) return;
+      if (dumpCode !== 0) {
+        fail(new Error(`mysqldump a échoué (code ${dumpCode}) : ${stderr.trim()}`));
+        return;
+      }
 
-  dump.on("close", (code) => {
-    if (code !== 0) {
-      console.error(`[Backup] ❌ mysqldump a échoué (code ${code}) : ${stderr.trim()}`);
-      fs.existsSync(outPath) && fs.unlinkSync(outPath);
-      process.exitCode = 1;
-      return;
-    }
-    const sizeKb = (fs.statSync(outPath).size / 1024).toFixed(1);
-    console.log(`[Backup] ✅ Sauvegarde créée : ${outPath} (${sizeKb} Ko)`);
-    cleanupOldBackups();
+      settled = true;
+      const sizeKb = (fs.statSync(outPath).size / 1024).toFixed(1);
+      console.log(`[Backup] ✅ Sauvegarde créée : ${outPath} (${sizeKb} Ko)`);
+      cleanupOldBackups();
+      resolve(outPath);
+    };
+
+    dump.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
+    dump.on("error", (err) => {
+      fail(new Error(
+        "Impossible de lancer mysqldump. Vérifie qu'il est installé et accessible " +
+        `dans le PATH (fourni avec MySQL/MariaDB) : ${err.message}`
+      ));
+    });
+    dump.on("close", (code) => {
+      dumpCode = code;
+      finishIfReady();
+    });
+    gzip.on("error", fail);
+    outStream.on("error", fail);
+    outStream.on("finish", () => {
+      streamFinished = true;
+      finishIfReady();
+    });
+
+    dump.stdout.pipe(gzip).pipe(outStream);
   });
 }
 
 function cleanupOldBackups() {
-  const cutoff = Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000;
+  const cutoff = getRetentionCutoff();
   for (const file of fs.readdirSync(BACKUP_DIR)) {
     if (!file.endsWith(".sql.gz")) continue;
     const filePath = path.join(BACKUP_DIR, file);
     if (fs.statSync(filePath).mtimeMs < cutoff) {
       fs.unlinkSync(filePath);
-      console.log(`[Backup] 🗑️  Ancienne sauvegarde supprimée (> ${RETENTION_DAYS} j) : ${file}`);
+      console.log(`[Backup] 🗑️  Ancienne sauvegarde supprimée (> ${RETENTION_MONTHS} mois) : ${file}`);
     }
   }
 }
 
-runBackup();
+if (require.main === module) {
+  runBackup().catch((err) => {
+    console.error(`[Backup] ❌ ${err.message}`);
+    process.exitCode = 1;
+  });
+}
+
+module.exports = { runBackup, getRetentionCutoff };

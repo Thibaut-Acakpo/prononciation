@@ -41,6 +41,7 @@ const { setupMatchNamespace } = require("./realtime");
 const { isValidWord, isValidFreeWord } = require("./wordList");
 const { annotateAlignmentWithTips } = require("./phonemeTips");
 const { resolveEffectivePremium } = require("./premiumAccess");
+const { runBackup } = require("./scripts/backup_db");
 
 // Quota quotidien d'analyses pour les comptes gratuits — voir /api/analyze.
 // Illimité pour les comptes Premium et les administrateurs.
@@ -524,6 +525,13 @@ app.get("*", (req, res) => {
 initSchema()
   .then(() => {
     console.log("[DB] ✅ Connexion MySQL OK — comptes et historique disponibles.");
+    const backupIntervalHours = Number(process.env.BACKUP_INTERVAL_HOURS) || 24;
+    const createBackup = () => {
+      runBackup().catch((err) => console.error(`[Backup] ❌ ${err.message}`));
+    };
+    createBackup();
+    const backupTimer = setInterval(createBackup, backupIntervalHours * 60 * 60 * 1000);
+    backupTimer.unref();
   })
   .catch((err) => {
     // Important : on ne bloque plus le démarrage du serveur si MySQL est mal
