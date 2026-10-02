@@ -13,8 +13,9 @@
 #   - ne dépend plus d'un service tiers non contractualisé (RGPD),
 #   - donne une transcription nettement plus fiable sur des mots isolés.
 # ============================================================
-
 import os
+os.environ["PHONEMIZER_ESPEAK_LIBRARY"] = r"C:\Program Files\eSpeak NG\libespeak-ng.dll"
+os.environ["PHONEMIZER_ESPEAK_PATH"] = r"C:\Program Files\eSpeak NG\espeak-ng.exe"
 import sys
 
 # ── Détection cross-platform d'espeak-ng (remplace le chemin Windows codé

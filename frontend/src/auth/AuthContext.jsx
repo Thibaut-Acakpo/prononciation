@@ -4,28 +4,60 @@ const AuthContext = createContext(null);
 const TOKEN_KEY = "parollle_token";
 const PREVIEW_KEY = "parollle_admin_preview"; // "standard" | "premium" | null (= admin par défaut)
 
-async function apiCall(method, path, body, token, previewAs) {
-  const res = await fetch(path, {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(previewAs ? { "X-Preview-As": previewAs } : {}),
-    },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Une erreur est survenue.");
+// ✅ Fonction utilitaire qui parse la réponse de manière sécurisée
+async function parseResponse(res) {
+  const contentType = res.headers.get("content-type") || "";
+  let data = null;
+
+  // On essaie de lire le JSON uniquement si le serveur annonce du JSON
+  if (contentType.includes("application/json")) {
+    try {
+      data = await res.json();
+    } catch {
+      data = null;
+    }
+  } else {
+    // Sinon (HTML d'erreur, réponse vide...), on lit le texte brut
+    const text = await res.text();
+    data = text ? { error: text } : null;
+  }
+
+  if (!res.ok) {
+    // Priorité : message clair renvoyé par le backend
+    const message =
+      (data && data.error) ||
+      (data && data.message) ||
+      `Erreur ${res.status}`;
+    throw new Error(message);
+  }
+
   return data;
+}
+
+async function apiCall(method, path, body, token, previewAs) {
+  let res;
+  try {
+    res = await fetch(path, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(previewAs ? { "X-Preview-As": previewAs } : {}),
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+  } catch (networkErr) {
+    // Serveur éteint, mauvaise URL, pas de connexion Internet...
+    throw new Error("Impossible de contacter le serveur. Vérifie ta connexion internet.");
+  }
+
+  return parseResponse(res);
 }
 
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY));
   const [user, setUser] = useState(null);
   const [checking, setChecking] = useState(true);
-  // Mode "aperçu" — admin uniquement (voir premiumAccess.js côté backend et
-  // le sélecteur dans ProfileScreen). Persisté pour survivre à un rechargement
-  // de page pendant qu'un admin teste l'expérience gratuite/Premium.
   const [adminPreview, setAdminPreviewState] = useState(() => localStorage.getItem(PREVIEW_KEY) || null);
 
   const setAdminPreview = useCallback((mode) => {
@@ -34,14 +66,8 @@ export function AuthProvider({ children }) {
     setAdminPreviewState(mode);
   }, []);
 
-  // N'a d'effet réel que pour un compte admin (le backend l'ignore pour
-  // tout le monde d'autre, voir premiumAccess.js) — mais on ne l'envoie
-  // même pas dans ce cas pour ne rien laisser traîner inutilement.
   const previewHeader = user?.role === "admin" ? adminPreview : null;
 
-  // Au chargement, si un token existe déjà (session précédente), on vérifie
-  // qu'il est toujours valide auprès du backend plutôt que de faire confiance
-  // aveuglément à ce qui est dans le localStorage (le token a pu expirer).
   useEffect(() => {
     if (!token) { setChecking(false); return; }
 
@@ -85,13 +111,17 @@ export function AuthProvider({ children }) {
   const uploadAvatar = useCallback(async (file) => {
     const formData = new FormData();
     formData.append("avatar", file);
-    const res = await fetch("/api/auth/me/avatar/upload", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, ...(previewHeader ? { "X-Preview-As": previewHeader } : {}) },
-      body: formData,
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Impossible d'envoyer cette photo.");
+    let res;
+    try {
+      res = await fetch("/api/auth/me/avatar/upload", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, ...(previewHeader ? { "X-Preview-As": previewHeader } : {}) },
+        body: formData,
+      });
+    } catch {
+      throw new Error("Impossible de contacter le serveur. Vérifie ta connexion internet.");
+    }
+    const data = await parseResponse(res);
     setUser(data.user);
     return data.user;
   }, [token, previewHeader]);
@@ -123,9 +153,6 @@ export function AuthProvider({ children }) {
     return data;
   }, [token, previewHeader]);
 
-  // Rafraîchit l'utilisateur depuis le serveur — utilisé après confirmation
-  // d'email (VerifyEmailScreen) pour que le bandeau "email non confirmé"
-  // disparaisse immédiatement sans attendre une reconnexion.
   const refreshUser = useCallback(async () => {
     if (!token) return null;
     const data = await apiCall("GET", "/api/auth/me", null, token, previewHeader);
@@ -135,23 +162,15 @@ export function AuthProvider({ children }) {
 
   const startPremiumCheckout = useCallback(async () => {
     const data = await apiCall("POST", "/api/premium/checkout", null, token, previewHeader);
-    return data; // { paymentUrl, transactionId }
+    return data;
   }, [token, previewHeader]);
 
   const verifyPremiumPayment = useCallback(async (transactionId) => {
     const data = await apiCall("GET", `/api/premium/verify/${transactionId}`, null, token, previewHeader);
     if (data.user) setUser(data.user);
-    return data; // { status, user? }
+    return data;
   }, [token, previewHeader]);
 
-  // Un administrateur a accès à toutes les fonctionnalités, y compris celles
-  // réservées aux comptes Premium — pas besoin qu'il paie pour tester ou
-  // gérer l'app. Utiliser CETTE valeur (jamais `user.is_premium` seul) pour
-  // décider d'afficher/débloquer une fonctionnalité Premium dans l'UI.
-  //
-  // Exception : un admin en mode "aperçu utilisateur standard" (voir
-  // ProfileScreen) doit voir l'app comme un compte gratuit normal, pour
-  // pouvoir réellement tester/valider cette expérience.
   const isPremiumEffective = Boolean(user) && (
     user.role === "admin" ? adminPreview !== "standard" : Boolean(user.is_premium)
   );

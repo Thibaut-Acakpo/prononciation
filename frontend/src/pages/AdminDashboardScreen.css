@@ -1,0 +1,232 @@
+/* ── Tableau de bord admin : cartes de chiffres ────────────────────────── */
+
+.adm-section {
+  margin-bottom: 24px;
+}
+
+.adm-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+  margin-top: 12px;
+}
+
+/* L'enveloppe porte l'entrée en scène, la carte porte l'inclinaison 3D */
+.adm-kpi-wrap {
+  opacity: 0;
+  animation: adm-rise 0.65s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  animation-delay: calc(var(--i, 0) * 80ms);
+  perspective: 900px;
+}
+
+@keyframes adm-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.adm-kpi {
+  --rx: 0deg;
+  --ry: 0deg;
+  --mx: 50%;
+  --my: 0%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 140px;
+  padding: 16px 16px 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  /* Fond plus clair et plus contrasté pour faire ressortir les cartes */
+  background: linear-gradient(150deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98));
+  overflow: hidden;
+  transform: rotateX(var(--rx)) rotateY(var(--ry));
+  transform-style: preserve-3d;
+  transition: transform 0.18s ease-out, border-color 0.25s ease, box-shadow 0.25s ease;
+  will-change: transform;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+/* Reflet coloré qui suit le pointeur */
+.adm-kpi::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    220px circle at var(--mx) var(--my),
+    color-mix(in srgb, var(--kpi-color) 30%, transparent),
+    transparent 70%
+  );
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+}
+
+/* Filet de couleur en haut de la carte */
+.adm-kpi::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 16px;
+  right: 16px;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: linear-gradient(90deg, var(--kpi-color), transparent);
+  opacity: 0.9;
+}
+
+.adm-kpi:hover {
+  border-color: color-mix(in srgb, var(--kpi-color) 50%, transparent);
+  box-shadow: 0 16px 40px -10px color-mix(in srgb, var(--kpi-color) 45%, transparent);
+}
+
+.adm-kpi:hover::before {
+  opacity: 1;
+}
+
+.adm-kpi__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--c-text-secondary, #94a3b8);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.adm-kpi__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  color: var(--kpi-color);
+  background: color-mix(in srgb, var(--kpi-color) 18%, transparent);
+  transform: translateZ(18px);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--kpi-color) 25%, transparent);
+}
+
+.adm-kpi__body {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+  transform: translateZ(10px);
+  margin-top: auto;
+}
+
+.adm-kpi__main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.adm-kpi__value {
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--c-text, #f1f5f9);
+  text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+}
+
+.adm-kpi__hint {
+  margin-top: auto;
+  font-size: 12px;
+  color: var(--c-text-secondary, #94a3b8);
+  line-height: 1.4;
+}
+
+/* Pastille d'évolution */
+.adm-trend {
+  align-self: flex-start;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.adm-trend--up   { color: #34d399; background: rgba(52, 211, 153, 0.15); }
+.adm-trend--down { color: #f87171; background: rgba(248, 113, 113, 0.15); }
+.adm-trend--flat { color: #94a3b8; background: rgba(148, 163, 184, 0.15); }
+.adm-trend--new  { color: #60a5fa; background: rgba(96, 165, 250, 0.15); }
+
+/* Courbe */
+.adm-spark {
+  flex: none;
+  width: 100px;
+  height: 32px;
+  overflow: visible;
+}
+
+.adm-spark__line {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: adm-draw 1.3s ease-out 0.35s forwards;
+}
+
+.adm-spark__area {
+  opacity: 0;
+  animation: adm-fade 0.8s ease-out 1s forwards;
+}
+
+@keyframes adm-draw { to { stroke-dashoffset: 0; } }
+@keyframes adm-fade { to { opacity: 1; } }
+
+/* Jauge circulaire */
+.adm-gauge {
+  flex: none;
+  width: 64px;
+  height: 64px;
+}
+
+.adm-gauge__track {
+  fill: none;
+  stroke: rgba(148, 163, 184, 0.15);
+  stroke-width: 6;
+}
+
+.adm-gauge__arc {
+  fill: none;
+  stroke-width: 6;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Téléphone : deux cartes par ligne */
+@media (max-width: 520px) {
+  .adm-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .adm-kpi { padding: 14px 12px 12px; min-height: 130px; }
+  .adm-kpi__value { font-size: 26px; }
+  .adm-kpi__head { font-size: 11px; }
+  .adm-kpi__icon { width: 26px; height: 26px; }
+  .adm-spark { width: 70px; height: 24px; }
+  .adm-gauge { width: 50px; height: 50px; }
+}
+
+/* Respect du réglage « réduire les animations » */
+@media (prefers-reduced-motion: reduce) {
+  .adm-kpi-wrap { animation: none; opacity: 1; }
+  .adm-kpi { transform: none !important; transition: none; }
+  .adm-spark__line { animation: none; stroke-dashoffset: 0; }
+  .adm-spark__area { animation: none; opacity: 1; }
+  .adm-gauge__arc { transition: none; }
+}
+
+/* ── Améliorations pour le graphique Recharts ─────────────────────────── */
+.recharts-default-tooltip {
+  background-color: var(--c-surface) !important;
+  border: 1px solid rgba(148, 163, 184, 0.2) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4) !important;
+}
+.recharts-tooltip-item {
+  color: var(--c-text) !important;
+  font-size: 12px;
+}
+.recharts-legend-item-text {
+  color: var(--c-text-secondary) !important;
+  font-size: 12px;
+}

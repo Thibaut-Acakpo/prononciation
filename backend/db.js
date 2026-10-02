@@ -19,8 +19,24 @@ const pool = mysql.createPool({
   password: process.env.DB_PASSWORD || "",
   database: process.env.DB_NAME || "parollle",
   waitForConnections: true,
-  connectionLimit: 10,
+    connectionLimit: 5,
+  maxIdle: 1,                    // ne garde qu'une connexion inactive ouverte
+  idleTimeout: 30000,            // ferme les connexions inactives après 30 s
+  keepAliveInitialDelay: 10000,  // keep-alive TCP après 10 s d'inactivité
   dateStrings: true, // évite les conversions de fuseau horaire surprises côté JS
+  // Base hébergée (TiDB Cloud) : connexion chiffrée obligatoire.
+  // Activée uniquement si DB_SSL=true dans .env, le local (WAMP) reste inchangé.
+  ...(process.env.DB_SSL === "true"
+    ? { ssl: { minVersion: "TLSv1.2", rejectUnauthorized: true } }
+    : {}),
+  // Évite les coupures de connexion après une période d'inactivité (base distante).
+  enableKeepAlive: true,
+});
+
+// Force le fuseau UTC sur chaque connexion : DEFAULT CURRENT_TIMESTAMP
+// utilise le fuseau de la session, et le frontend suppose de l'UTC.
+pool.pool.on("connection", (conn) => {
+  conn.query("SET time_zone = '+00:00'");
 });
 
 // ── Création des tables si elles n'existent pas encore ──────────────────────
@@ -37,7 +53,7 @@ async function initSchema() {
       display_name  VARCHAR(255),
       role          VARCHAR(20) NOT NULL DEFAULT 'user',
       avatar_url    VARCHAR(500),
-      created_at    DATETIME NOT NULL DEFAULT (UTC_TIMESTAMP())
+      created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `);
 
@@ -96,8 +112,8 @@ async function initSchema() {
       amount              INT NOT NULL,
       currency            VARCHAR(10) NOT NULL DEFAULT 'XOF',
       status              VARCHAR(20) NOT NULL DEFAULT 'pending',
-      created_at          DATETIME NOT NULL DEFAULT (UTC_TIMESTAMP()),
-      updated_at          DATETIME NOT NULL DEFAULT (UTC_TIMESTAMP()) ON UPDATE CURRENT_TIMESTAMP,
+      created_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       UNIQUE KEY uniq_fedapay_tx (fedapay_transaction_id),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -113,7 +129,7 @@ async function initSchema() {
       user_id     INT NULL,
       platform    VARCHAR(20),
       user_agent  VARCHAR(500),
-      created_at  DATETIME NOT NULL DEFAULT (UTC_TIMESTAMP()),
+      created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `);
@@ -134,7 +150,7 @@ async function initSchema() {
       verdict          VARCHAR(255),
       alignment_json   JSON NULL,
       is_daily_challenge TINYINT(1) NOT NULL DEFAULT 0,
-      created_at       DATETIME NOT NULL DEFAULT (UTC_TIMESTAMP()),
+      created_at       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       INDEX idx_tentatives_user (user_id, created_at),
       INDEX idx_tentatives_daily (is_daily_challenge, created_at),
       CONSTRAINT fk_tentatives_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -162,8 +178,8 @@ async function initSchema() {
   // `new Date(created_at + "Z")` dans HistoryScreen.jsx). Ce mélange
   // provoquait un décalage d'heure à l'affichage. On force donc explicitement
   // UTC_TIMESTAMP() ici, pour les tables déjà existantes aussi.
-  await pool.query(`ALTER TABLE users MODIFY COLUMN created_at DATETIME NOT NULL DEFAULT (UTC_TIMESTAMP())`);
-  await pool.query(`ALTER TABLE tentatives MODIFY COLUMN created_at DATETIME NOT NULL DEFAULT (UTC_TIMESTAMP())`);
+  await pool.query(`ALTER TABLE users MODIFY COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+  await pool.query(`ALTER TABLE tentatives MODIFY COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP`);
 
   // ── Mode Match (défi en temps réel entre utilisateurs) ─────────────────
   await pool.query(`
@@ -172,12 +188,12 @@ async function initSchema() {
       room_code    VARCHAR(12) NOT NULL,
       word         VARCHAR(255) NOT NULL,
       created_by   INT NOT NULL,
-      created_at   DATETIME NOT NULL DEFAULT (UTC_TIMESTAMP()),
+      created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       finished_at  DATETIME NULL,
       CONSTRAINT fk_matches_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `);
-  await pool.query(`ALTER TABLE matches MODIFY COLUMN created_at DATETIME NOT NULL DEFAULT (UTC_TIMESTAMP())`);
+  await pool.query(`ALTER TABLE matches MODIFY COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS match_participants (

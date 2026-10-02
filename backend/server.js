@@ -11,6 +11,11 @@
  * wav2vec2 était chargé ici, alors que le code appelait en réalité l'API web
  * gratuite de Google. Voir backend/python/extract_phonemes.py pour le détail
  * du changement vers un modèle Whisper local.)
+ *
+ * Déploiement (Render, offre gratuite) : le worker Python est désactivable
+ * avec DISABLE_PYTHON=true (l'analyse vocale est alors indisponible, mais le
+ * reste de l'application fonctionne), et la sauvegarde mysqldump avec
+ * DISABLE_BACKUP=true.
  */
 
 require("dotenv").config();
@@ -53,6 +58,12 @@ const PYTHON = process.env.PYTHON_PATH || "python";
 const BUILD_DIR = path.join(__dirname, "..", "frontend", "dist");
 const TMP_DIR = path.join(__dirname, "tmp");
 const SCRIPT = path.join(__dirname, "python", "analyze_request.py");
+
+// Hébergement sans Python (Render gratuit) : voir l'en-tête de ce fichier.
+const PYTHON_DISABLED = process.env.DISABLE_PYTHON === "true";
+// Copie statique du lexique (générée par scripts/export_words.js) pour
+// répondre à /api/words sans avoir à lancer Python.
+const WORDS_FILE = path.join(__dirname, "words.json");
 
 const MAX_AUDIO_SIZE_BYTES = 10 * 1024 * 1024; // 10 Mo — largement suffisant pour un mot isolé
 
@@ -111,7 +122,24 @@ const corsOptions = {
 // Helmet active par défaut l'en-tête HSTS (Strict-Transport-Security), qui
 // indique aux navigateurs de ne plus jamais reparler en HTTP une fois HTTPS
 // utilisé une première fois.
-app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
+//
+// Politique de contenu (CSP) : celle de Helmet est très stricte par défaut
+// (images uniquement depuis le même site, aucun média "blob:"). Maintenant que
+// ce serveur sert aussi le frontend compilé, elle bloquerait les avatars
+// hébergés ailleurs et la relecture de l'enregistrement audio de l'utilisateur
+// (URL "blob:"). On assouplit donc UNIQUEMENT les images et les médias.
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    contentSecurityPolicy: {
+      useDefaults: true,
+      directives: {
+        "img-src": ["'self'", "data:", "blob:", "https:"],
+        "media-src": ["'self'", "data:", "blob:", "https:"],
+      },
+    },
+  })
+);
 
 // HTTPS partout, en production uniquement (en dev, localhost n'a pas de
 // certificat TLS, la redirection casserait tout). `trust proxy` est
@@ -167,7 +195,12 @@ app.post(
 );
 
 app.use(express.json());
-app.use((req, res, next) => {
+
+// Correction : cet en-tête JSON était auparavant posé sur TOUTES les réponses,
+// y compris les fichiers du frontend (JS, CSS, page d'accueil) servis juste
+// après par express.static — le navigateur les recevait alors comme du JSON
+// et refusait de les exécuter. On le limite maintenant aux routes /api.
+app.use("/api", (req, res, next) => {
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   next();
 });
@@ -283,11 +316,22 @@ function processAnalyzeQueue() {
 let stdoutBuffer = "";
 
 function startWorker() {
+  // Hébergement sans Python (ex. Render gratuit) : on ne lance rien.
+  if (PYTHON_DISABLED) {
+    console.log("[Node] Worker Python désactivé (DISABLE_PYTHON=true) : l'analyse vocale est indisponible.");
+    return;
+  }
+
   console.log("[Node] Démarrage du worker Python (le modèle Whisper sera chargé à la première requête)…");
   pythonWorker = spawn(PYTHON, [SCRIPT, "--preload"], {
     windowsHide: true,
     cwd: path.join(__dirname, "python"),
     env: PYTHON_ENV,
+  });
+
+  // Sans écouteur d'erreur, un Python introuvable ferait planter tout le serveur.
+  pythonWorker.on("error", (err) => {
+    console.error("[Node] Impossible de lancer Python :", err.message);
   });
 
   // IMPORTANT : on force explicitement l'encodage UTF-8 sur les flux,
@@ -345,6 +389,9 @@ function startWorker() {
 
 function analyzeWithWorker(audioPath, word, isPremium = false) {
   return new Promise((resolve, reject) => {
+    if (PYTHON_DISABLED) {
+      return reject(new Error("L'analyse vocale n'est pas encore disponible sur la version en ligne."));
+    }
     if (!pythonWorker) {
       return reject(new Error("Le modèle est encore en cours de chargement. Réessayez dans quelques secondes."));
     }
@@ -362,10 +409,24 @@ startWorker();
 // ── Routes API ────────────────────────────────────────────────────────────────
 
 app.get("/api/status", (_req, res) => {
-  res.json({ ready: workerReady });
+  // Sans Python, on annonce "prêt" pour ne pas bloquer l'interface sur un
+  // écran de chargement du modèle ; `analysisAvailable` dit la vérité.
+  res.json({ ready: PYTHON_DISABLED ? true : workerReady, analysisAvailable: !PYTHON_DISABLED });
 });
 
 app.get("/api/words", (_req, res) => {
+  // 1) Copie statique du lexique (utilisée sur Render, sans Python).
+  if (fs.existsSync(WORDS_FILE)) {
+    try {
+      const raw = fs.readFileSync(WORDS_FILE, "utf8").replace(/^\uFEFF/, "");
+      return res.json(JSON.parse(raw));
+    } catch (e) {
+      console.error("[Node] words.json illisible :", e.message);
+    }
+  }
+  if (PYTHON_DISABLED) return res.status(503).json({ error: "Lexique indisponible." });
+
+  // 2) Sinon, on interroge Python comme avant.
   const child = spawn(PYTHON, [SCRIPT, "--list-words"], {
     windowsHide: true,
     cwd: path.join(__dirname, "python"),
@@ -525,6 +586,8 @@ app.get("*", (req, res) => {
 initSchema()
   .then(() => {
     console.log("[DB] ✅ Connexion MySQL OK — comptes et historique disponibles.");
+    // Pas de mysqldump sur l'hébergement gratuit : sauvegarde désactivable.
+    if (process.env.DISABLE_BACKUP === "true") return;
     const backupIntervalHours = Number(process.env.BACKUP_INTERVAL_HOURS) || 24;
     const createBackup = () => {
       runBackup().catch((err) => console.error(`[Backup] ❌ ${err.message}`));

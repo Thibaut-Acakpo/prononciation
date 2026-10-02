@@ -1443,10 +1443,15 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   transform: translateX(-50%);
   width: 100%;
   height: 100%;
-  background-color: rgba(var(--c-border-rgb), 0.25); /* Bulle grise */
+  background-color: rgba(var(--c-border-rgb), 0.25); /* Bulle grise (thème sombre) */
   border-radius: 16px; /* Forme de pilule */
   z-index: -1;
   animation: fadeIn 0.2s ease-out;
+}
+
+/* ✅ En thème clair, la bulle doit être plus visible (bleu très pâle) */
+:root[data-theme="light"] .bottom-nav__item.active .bottom-nav__frame::before {
+  background-color: rgba(37, 99, 235, 0.12);
 }
 
 /* Animation d'apparition */
@@ -1466,7 +1471,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 
 /* ── ÉTAT ACTIF : Couleur et Dégradé ── */
 .bottom-nav__item.active {
-  color: #00e5ff; /* Couleur de secours cyan */
+  color: var(--c-link); /* ✅ Utilise la variable de thème au lieu de #00e5ff fixe */
 }
 
 /* Le dégradé Vert -> Bleu sur l'icône SVG active */
@@ -1477,12 +1482,13 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 
 /* Fallback si le dégradé SVG ne fonctionne pas, on met une couleur unie */
 .bottom-nav__item.active .bottom-nav__frame svg:not([stroke*="url"]) {
-  stroke: #00e5ff;
+  stroke: var(--c-link); /* ✅ Variable de thème au lieu de #00e5ff fixe */
 }
 
+/* ✅ CORRECTION : le texte actif utilise la couleur du thème (lisible en clair ET en sombre) */
 .bottom-nav__item.active .bottom-nav__label {
   font-weight: 700;
-  color: #ffffff;
+  color: var(--c-link);
 }
 
 /* ── Onglet "Match" : bouton circulaire surélevé (FAB) ── */
@@ -1510,7 +1516,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   margin-top: 2px;
 }
 .bottom-nav__item--fab.active .bottom-nav__label {
-  color: #00e5ff;
+  color: var(--c-link); /* ✅ Variable de thème au lieu de #00e5ff fixe */
   font-weight: 700;
 }
 
@@ -3676,3 +3682,114 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   cursor: pointer;
 }
 .share-app-link-btn:hover { background: rgba(37, 99, 235, 0.18); }
+
+/* ── Barre de recherche améliorée ────────────────────────────────────────── */
+
+.search-input {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 12px;
+  padding: 10px 14px;
+  transition: all 0.25s ease;
+  position: relative;
+}
+
+.search-input:focus-within {
+  border-color: #3b82f6; /* Bleu */
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+  background: rgba(15, 23, 42, 0.9);
+}
+
+/* ✅ En thème clair, on ajuste le fond */
+:root[data-theme="light"] .search-input {
+  background: rgba(255, 255, 255, 0.8);
+  border-color: rgba(100, 116, 139, 0.25);
+}
+:root[data-theme="light"] .search-input:focus-within {
+  background: #ffffff;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.search-input input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--c-text, #f1f5f9);
+  font-size: 14px;
+}
+
+.search-input input::placeholder {
+  color: var(--c-text-secondary, #94a3b8);
+  opacity: 0.7;
+}
+
+/* Icône de recherche */
+.search-icon {
+  color: var(--c-text-secondary, #94a3b8);
+  flex-shrink: 0;
+}
+
+/* Spinner de chargement */
+.search-spinner {
+  color: #3b82f6;
+  flex-shrink: 0;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Bouton effacer */
+.search-clear-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(148, 163, 184, 0.2);
+  border: none;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  color: var(--c-text-secondary, #94a3b8);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.search-clear-btn:hover {
+  background: rgba(248, 113, 113, 0.2);
+  color: #f87171;
+}
+
+/* Raccourci clavier */
+.search-kbd {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--c-text-secondary, #94a3b8);
+  background: rgba(148, 163, 184, 0.1);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 4px;
+  padding: 2px 6px;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+}
+
+/* Cache le raccourci clavier sur mobile */
+@media (max-width: 600px) {
+  .search-kbd {
+    display: none;
+  }
+}
+
+.search-input:focus-within .search-kbd {
+  opacity: 1;
+}

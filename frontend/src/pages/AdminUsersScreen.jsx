@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, ChevronRight, Crown } from "lucide-react";
+import { Search, ChevronRight, Crown, X, Loader2 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import TopBar from "../layout/TopBar";
 import UserAvatar from "../components/UserAvatar";
@@ -11,7 +11,9 @@ export default function AdminUsersScreen() {
   const [users, setUsers] = useState([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const inputRef = useRef(null);
 
+  // Debounce pour la recherche
   useEffect(() => {
     setLoading(true);
     const t = setTimeout(() => {
@@ -22,26 +24,54 @@ export default function AdminUsersScreen() {
         .then((data) => setUsers(data.users || []))
         .catch(() => setUsers([]))
         .finally(() => setLoading(false));
-    }, 250);
+    }, 300); // 300ms est un bon compromis
     return () => clearTimeout(t);
   }, [search, token]);
+
+  // Raccourci clavier "Ctrl+K" ou "Cmd+K" pour focus la recherche
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+        e.preventDefault();
+        inputRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  const clearSearch = () => {
+    setSearch("");
+    inputRef.current?.focus();
+  };
 
   return (
     <div className="screen">
       <TopBar title="Utilisateurs" showBack onBack={() => navigate("/admin")} />
 
       <div className="card">
-        <div className="search-input">
-          <Search size={16} />
+        <div className={`search-input ${loading ? "search-input--loading" : ""}`}>
+          {loading ? (
+            <Loader2 size={16} className="search-spinner" />
+          ) : (
+            <Search size={16} className="search-icon" />
+          )}
           <input
+            ref={inputRef}
             placeholder="Rechercher par nom ou email…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
+          {search && (
+            <button className="search-clear-btn" onClick={clearSearch} aria-label="Effacer la recherche">
+              <X size={14} />
+            </button>
+          )}
+          <kbd className="search-kbd">Ctrl K</kbd>
         </div>
       </div>
 
-      {loading ? (
+      {loading && users.length === 0 ? (
         <p className="screen-hint">Chargement…</p>
       ) : users.length === 0 ? (
         <p className="screen-hint">Aucun utilisateur trouvé.</p>

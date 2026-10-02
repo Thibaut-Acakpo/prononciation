@@ -54,7 +54,7 @@ function runBackup() {
   const outPath = path.join(BACKUP_DIR, `${DB_NAME}-${timestamp()}.sql.gz`);
   const args = [
     `-h${DB_HOST}`, `-P${DB_PORT}`, `-u${DB_USER}`,
-    "--single-transaction", "--routines", "--events",
+    "--skip-lock-tables",
     DB_NAME,
   ];
   // Le mot de passe n'est PAS passé en argument de ligne de commande (visible

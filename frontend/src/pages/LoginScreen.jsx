@@ -15,12 +15,23 @@ export default function LoginScreen() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
+
+    // ✅ Vérifications simples avant même d'appeler le serveur
+    if (!email.trim()) {
+      setError("Veuillez entrer votre email.");
+      return;
+    }
+    if (!password) {
+      setError("Veuillez entrer votre mot de passe.");
+      return;
+    }
+
     setSubmitting(true);
     try {
       await login(email, password);
       navigate("/profile");
     } catch (err) {
-      setError(err.message);
+      setError(getFriendlyErrorMessage(err));
     } finally {
       setSubmitting(false);
     }
@@ -67,4 +78,46 @@ export default function LoginScreen() {
       </div>
     </div>
   );
+}
+
+/**
+ * ✅ Transforme n'importe quelle erreur en message clair et utile.
+ */
+function getFriendlyErrorMessage(err) {
+  const raw = (err?.message || "").toLowerCase();
+
+  // ✅ Erreurs métier renvoyées par le backend (les plus importantes)
+  if (raw.includes("incorrect") || raw.includes("invalid")) {
+    return "Email ou mot de passe incorrect. Vérifie tes informations.";
+  }
+  if (raw.includes("n'existe pas") || raw.includes("not found") || raw.includes("no user")) {
+    return "Aucun compte n'existe avec cet email. Veuillez en créer un.";
+  }
+  if (raw.includes("déjà") || raw.includes("exists")) {
+    return "Ce compte existe déjà. Connecte-toi ou utilise un autre email.";
+  }
+  if (raw.includes("email") && raw.includes("confirm")) {
+    return "Ton email n'est pas encore confirmé. Vérifie ta boîte mail.";
+  }
+  if (raw.includes("compte désactivé") || raw.includes("disabled")) {
+    return "Ton compte est désactivé. Contacte le support.";
+  }
+
+  // Erreurs réseau
+  if (raw.includes("failed to fetch") || raw.includes("networkerror")) {
+    return "Impossible de contacter le serveur. Vérifie ta connexion internet.";
+  }
+
+  // Réponse invalide du serveur
+  if (raw.includes("unexpected end of json") || raw.includes("json")) {
+    return "Problème de communication avec le serveur. Réessaie dans un instant.";
+  }
+
+  // Erreur serveur
+  if (raw.includes("500") || raw.includes("503") || raw.includes("internal")) {
+    return "Le serveur rencontre un problème. Réessaie dans un instant.";
+  }
+
+  // Erreur inconnue
+  return "Une erreur est survenue. Réessaie dans quelques instants.";
 }
