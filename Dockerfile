@@ -1,5 +1,5 @@
 # Étape 1 : Compiler le frontend
-FROM node:18 AS frontend-build
+FROM node:22-bookworm-slim AS frontend-build
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
 RUN npm install
@@ -7,7 +7,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # Étape 2 : Construire le backend et copier le frontend
-FROM node:18-bookworm-slim
+FROM node:22-bookworm-slim
 
 # Installer Python et les outils audio requis par le mode léger
 ENV NODE_ENV=production \
