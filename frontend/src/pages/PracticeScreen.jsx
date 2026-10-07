@@ -304,9 +304,9 @@ export default function PracticeScreen() {
             <PhonemeDiff alignment={rec.result.alignementPhonemes} />
             {!rec.result.usedAcousticModel && (
               <p className="acoustic-model-note">
-                Le modèle d'analyse acoustique complet est encore en cours de préparation en arrière-plan sur le
-                serveur (ça peut prendre un moment la première fois) — ce résultat utilise une méthode simplifiée
-                en attendant. Réessaie dans quelques minutes pour une analyse plus précise.
+                Analyse simplifiée : ce score est calculé à partir du mot reconnu dans ton enregistrement,
+                pas à partir d'une analyse acoustique de chaque son. Il dit si le mot est bien reconnu,
+                mais ne peut pas toujours préciser quel son corriger.
               </p>
             )}
           </div>

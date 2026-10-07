@@ -1,0 +1,8 @@
+# Dépendances Python du MODE ALLÉGÉ (hébergement gratuit, sans torch ni Whisper).
+# La transcription est faite par l'API Groq (voir groq_stt.py).
+# Prérequis système (installés par le Dockerfile) : espeak-ng, ffmpeg.
+
+pydub==0.25.1
+numpy==1.26.4
+phonemizer==3.2.1
+requests>=2.31

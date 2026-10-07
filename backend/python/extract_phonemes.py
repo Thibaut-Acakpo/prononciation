@@ -14,8 +14,9 @@
 #   - donne une transcription nettement plus fiable sur des mots isolés.
 # ============================================================
 import os
-os.environ["PHONEMIZER_ESPEAK_LIBRARY"] = r"C:\Program Files\eSpeak NG\libespeak-ng.dll"
-os.environ["PHONEMIZER_ESPEAK_PATH"] = r"C:\Program Files\eSpeak NG\espeak-ng.exe"
+if os.name == "nt":
+    os.environ["PHONEMIZER_ESPEAK_LIBRARY"] = r"C:\Program Files\eSpeak NG\libespeak-ng.dll"
+    os.environ["PHONEMIZER_ESPEAK_PATH"] = r"C:\Program Files\eSpeak NG\espeak-ng.exe"
 import sys
 
 # ── Détection cross-platform d'espeak-ng (remplace le chemin Windows codé
@@ -50,6 +51,7 @@ if not _espeak_found:
 from phonemizer.backend import EspeakBackend
 from phonemizer.separator import Separator
 from reference_phonemes import filename_to_index, dataset
+from groq_stt import lite_mode_enabled, transcribe_with_groq
 
 # Dossier racine
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -140,6 +142,9 @@ def transcribe_wav_to_text(wav_path):
     Retourne le texte reconnu (chaîne vide si rien de compréhensible),
     jamais None : un appelant qui teste juste `if not text` fonctionne pareil.
     """
+
+    if lite_mode_enabled():
+        return transcribe_with_groq(wav_path)  # les erreurs remontent à l'appelant
     try:
         model = _get_whisper_model()
         # fp16=False : nécessaire sur CPU (la plupart des machines de dev/serveurs

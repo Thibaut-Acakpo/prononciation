@@ -3793,3 +3793,22 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 .search-input:focus-within .search-kbd {
   opacity: 1;
 }
+
+/* Mobile : les 4 boutons de sélection (Galerie, Caméra, Taper, Thèmes) en 2 × 2 */
+@media (max-width: 600px) {
+  .selection-mode-toggle {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    overflow: visible !important;
+  }
+  .selection-mode-toggle button {
+    width: 100%;
+    min-width: 0 !important;
+    flex: none !important;
+    justify-content: center;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.2;
+  }
+}

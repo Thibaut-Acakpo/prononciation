@@ -45,7 +45,7 @@ from extract_phonemes import transcribe_wav_to_text, text_to_phonemes
 from acoustic_phonemes import recognize_phonemes_from_audio, start_background_loading, is_acoustic_model_ready
 from reference_phonemes import dataset
 from similarity import jaccard_similarity, cosine_similarity
-
+from groq_stt import lite_mode_enabled
 
 # ── Utilitaires ───────────────────────────────────────────────────────────────
 
@@ -207,13 +207,14 @@ def ensure_wav(input_path):
     audio.export(output_path, format="wav")
     return output_path, True
 
-
 def make_verdict(jaccard, cosine, per, expected_word, recognized_text):
+    # Le verdict suit le taux d'erreur par phonème (PER), comme le commentaire :
+    # Jaccard/cosinus ignorent l'ordre des sons et pouvaient contredire le PER.
     if per == 0 and jaccard == 1.0 and cosine == 1.0:
         return "Excellent, prononciation très proche de la référence"
-    if jaccard >= 0.80 or cosine >= 0.80 or per <= 20:
+    if per <= 20:
         return "Proche de la bonne prononciation"
-    if jaccard >= 0.50 or cosine >= 0.50 or per <= 40:
+    if per <= 40:
         return "Prononciation acceptable"
     return "Prononciation éloignée de la référence"
 
@@ -365,32 +366,27 @@ def _build_commentaire(verdict, jaccard, cosine, per, expected, recognized):
 # ── Mode worker persistant ────────────────────────────────────────────────────
 
 def run_preload_worker():
+    lite = lite_mode_enabled()
     try:
-        import wave
-        import numpy as np
+        if lite:
+            sys.stderr.write("[Python] Mode allégé : transcription via Groq, aucun modèle local chargé.\n")
+            sys.stderr.flush()
+        else:
+            import wave
+            import numpy as np
 
-        tmp_dir = tempfile.mkdtemp(prefix="preload_")
-        wav_path = os.path.join(tmp_dir, "silence.wav")
-        sample_rate = 16000
-        with wave.open(wav_path, "w") as wf:
-            wf.setnchannels(1)
-            wf.setsampwidth(2)
-            wf.setframerate(sample_rate)
-            wf.writeframes(np.zeros(sample_rate, dtype=np.int16).tobytes())
+            tmp_dir = tempfile.mkdtemp(prefix="preload_")
+            wav_path = os.path.join(tmp_dir, "silence.wav")
+            sample_rate = 16000
+            with wave.open(wav_path, "w") as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(sample_rate)
+                wf.writeframes(np.zeros(sample_rate, dtype=np.int16).tobytes())
 
-        transcribe_wav_to_text(wav_path)
-
-        # Correction (blocage constaté) : avant, le modèle acoustique
-        # (~1,26 Go) devait finir de se télécharger AVANT que le serveur ne
-        # se signale "prêt" — sur une connexion lente, ça pouvait bloquer
-        # l'application entière pendant des heures, sans aucun repli
-        # possible pendant ce temps. Maintenant, le téléchargement démarre
-        # en arrière-plan et le serveur devient utilisable IMMÉDIATEMENT
-        # (avec repli automatique sur l'ancienne méthode tant que le modèle
-        # acoustique n'est pas encore prêt).
-        start_background_loading()
-
-        shutil.rmtree(tmp_dir, ignore_errors=True)
+            transcribe_wav_to_text(wav_path)
+            start_background_loading()
+            shutil.rmtree(tmp_dir, ignore_errors=True)
     except Exception as e:
         sys.stderr.write(f"[Python] Avertissement pré-chargement : {e}\n")
         sys.stderr.flush()
