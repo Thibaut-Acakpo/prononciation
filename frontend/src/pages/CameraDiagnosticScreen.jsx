@@ -42,7 +42,10 @@ export default function CameraDiagnosticScreen() {
     (async () => {
       try {
         await tf.ready();
-        const model = await cocoSsd.load({ base: "lite_mobilenet_v2" });
+        const model = await cocoSsd.load({ 
+          base: "lite_mobilenet_v2",
+          modelUrl: "/models/coco-ssd/model.json", 
+        });
         if (cancelled) return;
         modelRef.current = model;
         setModelReady(true);

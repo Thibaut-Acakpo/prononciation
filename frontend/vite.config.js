@@ -47,18 +47,17 @@ export default defineConfig({
         // utilisable hors-ligne après une première visite.
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
         runtimeCaching: [
-          {
-            // Photos des 80 objets (frontend/public/images/objects/, ~11 Mo
-            // au total) : on ne les précharge PAS toutes au premier
-            // chargement de la page (ça alourdirait inutilement la première
-            // visite) — chacune est mise en cache la première fois qu'elle
-            // est réellement affichée, puis reste disponible hors-ligne.
-            urlPattern: ({ url }) => url.pathname.startsWith("/images/objects/"),
+                    {
+            // Modèles TensorFlow.js (détection d'objets + main), hébergés par
+            // l'application elle-même dans public/models/. Chaque fichier est
+            // mis en cache la première fois qu'il est demandé, puis servi
+            // depuis le cache : le mode caméra fonctionne ensuite hors-ligne.
+            urlPattern: ({ url }) => url.pathname.startsWith("/models/"),
             handler: "CacheFirst",
             options: {
-              cacheName: "object-images-cache",
-              expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 * 365 },
-              cacheableResponse: { statuses: [0, 200] },
+              cacheName: "models-local-cache",
+              expiration: { maxEntries: 40, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheableResponse: { statuses: [200] },
             },
           },
           {

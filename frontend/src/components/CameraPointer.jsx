@@ -120,7 +120,10 @@ export default function CameraPointer({ knownWords, onWordConfirmed, onCancel })
       try {
         setStatus("Chargement du modèle de détection d'objets…");
         await tf.ready();
-        const objectModel = await cocoSsd.load({ base: "lite_mobilenet_v2" });
+        const objectModel = await cocoSsd.load({
+          base: "lite_mobilenet_v2",
+          modelUrl: "/models/coco-ssd/model.json",
+        });
         if (cancelled) return;
         modelsRef.current.objectModel = objectModel;
         setObjectModelReady(true);
@@ -135,7 +138,13 @@ export default function CameraPointer({ knownWords, onWordConfirmed, onCancel })
       try {
         const handModel = await handPoseDetection.createDetector(
           handPoseDetection.SupportedModels.MediaPipeHands,
-          { runtime: "tfjs", modelType: "lite", maxHands: 1 }
+          {
+            runtime: "tfjs",
+            modelType: "lite",
+            maxHands: 1,
+            detectorModelUrl: "/models/handpose/detector/model.json",
+            landmarkModelUrl: "/models/handpose/landmark/model.json",
+          }
         );
         if (cancelled) return;
         modelsRef.current.handModel = handModel;
